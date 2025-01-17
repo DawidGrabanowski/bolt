@@ -5,7 +5,7 @@ import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
 import { themeStore } from './lib/stores/theme';
 import { stripIndents } from './utils/stripIndent';
 import { createHead } from 'remix-island';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import reactToastifyStyles from 'react-toastify/dist/ReactToastify.css?url';
 import globalStyles from './styles/index.scss?url';
@@ -82,8 +82,34 @@ import { logStore } from './lib/stores/logs';
 
 export default function App() {
   const theme = useStore(themeStore);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const { authActions } = await import('~/lib/stores/auth');
+        const { supabase } = await import('~/lib/supabase/client');
+        
+        // Initialize auth state
+        await authActions.initializeAuth();
+        
+        // Set up auth state change listener
+        supabase.auth.onAuthStateChange((event, session) => {
+          if (event === 'SIGNED_IN') {
+            authActions.setUser(session?.user || null);
+          } else if (event === 'SIGNED_OUT') {
+            authActions.setUser(null);
+          }
+        });
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        setAuthInitialized(true);
+      }
+    };
+
+    initAuth();
+
     logStore.logSystem('Application initialized', {
       theme,
       platform: navigator.platform,
@@ -91,6 +117,16 @@ export default function App() {
       timestamp: new Date().toISOString(),
     });
   }, []);
+
+  if (!authInitialized) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-4xl animate-spin" />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
