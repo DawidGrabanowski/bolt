@@ -64,7 +64,21 @@ export const authActions = {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
+      // Reset auth state
       authStore.set({ ...authStore.get(), user: null, loading: false });
+
+      // Reset chat state and navigate to home
+      import('~/lib/stores/chat').then(({ chatStore }) => {
+        chatStore.set({
+          started: false,
+          aborted: false,
+          showChat: true
+        });
+      });
+
+      // Navigate to home page
+      window.location.href = '/';
+      
       return { error: null };
     } catch (error) {
       return { error };

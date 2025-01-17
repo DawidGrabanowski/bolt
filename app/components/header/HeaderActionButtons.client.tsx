@@ -15,10 +15,13 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
   const canHideChat = showWorkbench || !showChat;
 
+  const chat = useStore(chatStore);
+
   return (
     <div className="flex items-center gap-3">
       <AuthButton />
-      <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden">
+      {chat.started && (
+        <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden">
         <Button
           active={showChat}
           disabled={!canHideChat || isSmallViewport} // expand button is disabled on mobile as it's not needed
@@ -43,7 +46,8 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
         >
           <div className="i-ph:code-bold" />
         </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -85,22 +85,14 @@ export default function App() {
   const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
     const initAuth = async () => {
       try {
         const { authActions } = await import('~/lib/stores/auth');
-        const { supabase } = await import('~/lib/supabase/client');
         
-        // Initialize auth state
-        await authActions.initializeAuth();
-        
-        // Set up auth state change listener
-        supabase.auth.onAuthStateChange((event, session) => {
-          if (event === 'SIGNED_IN') {
-            authActions.setUser(session?.user || null);
-          } else if (event === 'SIGNED_OUT') {
-            authActions.setUser(null);
-          }
-        });
+        // Initialize auth state and get cleanup function
+        cleanup = await authActions.initializeAuth();
       } catch (error) {
         console.error('Auth initialization error:', error);
       } finally {
@@ -108,14 +100,21 @@ export default function App() {
       }
     };
 
-    initAuth();
-
-    logStore.logSystem('Application initialized', {
-      theme,
-      platform: navigator.platform,
-      userAgent: navigator.userAgent,
-      timestamp: new Date().toISOString(),
+    initAuth().then(() => {
+      logStore.logSystem('Application initialized', {
+        theme,
+        platform: navigator.platform,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+      });
     });
+
+    // Cleanup on unmount
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
   }, []);
 
   if (!authInitialized) {
