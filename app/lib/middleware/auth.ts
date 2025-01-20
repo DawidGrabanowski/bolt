@@ -1,4 +1,4 @@
-import { authStore } from '../stores/auth';
+import { authStore, authActions } from '../stores/auth';
 
 export function requireAuth(action: () => void | Promise<void>) {
   const { user, loading } = authStore.get();
@@ -12,6 +12,12 @@ export function requireAuth(action: () => void | Promise<void>) {
     const currentPath = window.location.pathname;
     authStore.set({ ...authStore.get(), returnUrl: currentPath });
     window.location.href = '/auth/login';
+    return;
+  }
+
+  if (!user.email_confirmed_at) {
+    // Show email verification modal
+    authActions.showEmailVerificationModal();
     return;
   }
 
@@ -30,6 +36,12 @@ export function withAuth<T extends (...args: any[]) => any>(fn: T): T {
       const currentPath = window.location.pathname;
       authStore.set({ ...authStore.get(), returnUrl: currentPath });
       window.location.href = '/auth/login';
+      return;
+    }
+
+    if (!user.email_confirmed_at) {
+      // Show email verification modal
+      authActions.showEmailVerificationModal();
       return;
     }
 

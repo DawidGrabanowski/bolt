@@ -6,15 +6,25 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   returnUrl: string | null;
+  showEmailVerificationModal: boolean;
 }
 
 export const authStore = atom<AuthState>({
   user: null,
   loading: true,
   returnUrl: null,
+  showEmailVerificationModal: false,
 });
 
 export const authActions = {
+  showEmailVerificationModal: () => {
+    authStore.set({ ...authStore.get(), showEmailVerificationModal: true });
+  },
+
+  hideEmailVerificationModal: () => {
+    authStore.set({ ...authStore.get(), showEmailVerificationModal: false });
+  },
+
   setUser: (user: User | null) => {
     authStore.set({ ...authStore.get(), user, loading: false });
   },

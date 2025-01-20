@@ -12,7 +12,7 @@ interface AuthenticatedImportButtonsProps {
 export function AuthenticatedImportButtons({ importChat }: AuthenticatedImportButtonsProps) {
   const { user } = useStore(authStore);
 
-  if (!user) {
+  if (!user || !user.email_confirmed_at) {
     return null;
   }
 
@@ -22,7 +22,6 @@ export function AuthenticatedImportButtons({ importChat }: AuthenticatedImportBu
         {ImportButtons(importChat)}
         <GitCloneButton importChat={importChat} />
       </div>
-      <StarterTemplates />
     </>
   );
 }

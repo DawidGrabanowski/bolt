@@ -1,7 +1,7 @@
 import type { Message } from 'ai';
 import React, { type RefCallback, useCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
-import { Menu } from '~/components/sidebar/Menu.client';
+import { AuthenticatedMenu } from '~/components/sidebar/AuthenticatedMenu';
 import { IconButton } from '~/components/ui/IconButton';
 import { Workbench } from '~/components/workbench/Workbench.client';
 import { classNames } from '~/utils/classNames';
@@ -16,7 +16,7 @@ import { protectedChatActions } from '~/lib/chat/protectedActions';
 import styles from './BaseChat.module.scss';
 import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportChatButton';
 import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButtons';
-import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
+import { AuthenticatedExamplePrompts } from '~/components/chat/AuthenticatedExamplePrompts';
 import GitCloneButton from './GitCloneButton';
 import { AuthenticatedImportButtons } from './AuthenticatedImportButtons';
 
@@ -26,7 +26,7 @@ import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import type { IProviderSetting, ProviderInfo } from '~/types/model';
 import { ScreenshotStateManager } from './ScreenshotStateManager';
 import { toast } from 'react-toastify';
-import StarterTemplates from './StarterTemplates';
+import { AuthenticatedStarterTemplates } from './AuthenticatedStarterTemplates';
 import type { ActionAlert } from '~/types/actions';
 import ChatAlert from './ChatAlert';
 import { LLMManager } from '~/lib/modules/llm/manager';
@@ -246,7 +246,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         className={classNames(styles.BaseChat, 'relative flex h-full w-full overflow-hidden')}
         data-chat-visible={showChat}
       >
-        <ClientOnly>{() => <Menu />}</ClientOnly>
+        <ClientOnly>{() => <AuthenticatedMenu />}</ClientOnly>
         <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
@@ -508,14 +508,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       protectedChatActions.handleImportChat(importChat, description, messages)
                     }
                   />
-                  {ExamplePrompts((event, messageInput) => {
-                    if (isStreaming) {
-                      handleStop?.();
-                      return;
-                    }
-
-                    handleSendMessage?.(event, messageInput);
-                  })}
+                  <AuthenticatedExamplePrompts
+                    sendMessage={(event, messageInput) => {
+                      if (isStreaming) {
+                        handleStop?.();
+                        return;
+                      }
+                      handleSendMessage?.(event, messageInput);
+                    }}
+                  />
+                  <AuthenticatedStarterTemplates />
                 </>
               )}
             </div>

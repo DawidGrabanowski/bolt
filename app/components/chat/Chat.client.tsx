@@ -8,9 +8,11 @@ import { useChat } from 'ai/react';
 import { useAnimate } from 'framer-motion';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
+import { EmailVerificationModal } from '~/components/auth/EmailVerificationModal';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
+import { authStore, authActions } from '~/lib/stores/auth';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
@@ -36,6 +38,8 @@ export function Chat() {
 
   const { ready, initialMessages, storeMessageHistory, importChat, exportChat } = useChatHistory();
   const title = useStore(description);
+  const { user, showEmailVerificationModal } = useStore(authStore);
+
   useEffect(() => {
     workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
   }, [initialMessages]);
@@ -49,6 +53,13 @@ export function Chat() {
           exportChat={exportChat}
           storeMessageHistory={storeMessageHistory}
           importChat={importChat}
+        />
+      )}
+      {showEmailVerificationModal && (
+        <EmailVerificationModal 
+          isOpen={true}
+          onClose={() => authActions.hideEmailVerificationModal()}
+          email={user?.email}
         />
       )}
       <ToastContainer
