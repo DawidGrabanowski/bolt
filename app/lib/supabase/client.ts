@@ -1,5 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
+export const createUserPermissions = async (userUuid: string) => {
+  return supabase
+    .from('user_permissions')
+    .insert([
+      { useruuid: userUuid }
+    ])
+    .select();
+};
+
 if (!import.meta.env.NEXT_PUBLIC_SUPABASE_URL) {
   throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
 }

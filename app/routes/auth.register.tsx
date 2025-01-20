@@ -4,6 +4,7 @@ import { useNavigate } from '@remix-run/react';
 import { authStore, authActions } from '~/lib/stores/auth';
 import { classNames } from '~/utils/classNames';
 import BackgroundRays from '~/components/ui/BackgroundRays';
+import { createUserPermissions } from '~/lib/supabase/client';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -32,6 +33,16 @@ export default function Register() {
     if (result.error) {
       setError(result.error instanceof Error ? result.error.message : 'Failed to sign up');
       return;
+    }
+
+    try {
+      // Dodaj uprawnienia dla nowego użytkownika
+      if (result.data?.user) {
+        await createUserPermissions(result.data.user.id);
+      }
+    } catch (error) {
+      console.error('Failed to create user permissions:', error);
+      // Nie pokazujemy błędu użytkownikowi, pozwalamy mu kontynuować
     }
 
     // Navigate back to the return URL or home page
