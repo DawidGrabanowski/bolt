@@ -18,6 +18,7 @@ import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportCh
 import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButtons';
 import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
 import GitCloneButton from './GitCloneButton';
+import { AuthenticatedImportButtons } from './AuthenticatedImportButtons';
 
 import FilePreview from './FilePreview';
 import { ModelSelector } from '~/components/chat/ModelSelector';
@@ -501,27 +502,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             </div>
             <div className="flex flex-col justify-center gap-5">
               {!chatStarted && (
-                <div className="flex justify-center gap-2">
-                  {ImportButtons((description, messages) =>
-                    protectedChatActions.handleImportChat(importChat, description, messages)
-                  )}
-                  <GitCloneButton
+                <>
+                  <AuthenticatedImportButtons
                     importChat={(description, messages) =>
                       protectedChatActions.handleImportChat(importChat, description, messages)
                     }
                   />
-                </div>
-              )}
-              {!chatStarted &&
-                ExamplePrompts((event, messageInput) => {
-                  if (isStreaming) {
-                    handleStop?.();
-                    return;
-                  }
+                  {ExamplePrompts((event, messageInput) => {
+                    if (isStreaming) {
+                      handleStop?.();
+                      return;
+                    }
 
-                  handleSendMessage?.(event, messageInput);
-                })}
-              {!chatStarted && <StarterTemplates />}
+                    handleSendMessage?.(event, messageInput);
+                  })}
+                </>
+              )}
             </div>
           </div>
           <ClientOnly>{() => <Workbench chatStarted={chatStarted} isStreaming={isStreaming} />}</ClientOnly>
