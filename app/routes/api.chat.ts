@@ -31,29 +31,59 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   return cookies;
 }
 
+interface ChatRequestBody {
+  messages: Messages;
+  files: any;
+  promptId?: string;
+  contextOptimization: boolean;
+  userId?: string;
+}
+
 async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages, files, promptId, contextOptimization } = await request.json<{
-    messages: Messages;
-    files: any;
-    promptId?: string;
-    contextOptimization: boolean;
-  }>();
-
-  const cookieHeader = request.headers.get('Cookie');
-  const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
-  const providerSettings: Record<string, IProviderSetting> = JSON.parse(
-    parseCookies(cookieHeader || '').providers || '{}',
-  );
-
-  const stream = new SwitchableStream();
-
-  const cumulativeUsage = {
-    completionTokens: 0,
-    promptTokens: 0,
-    totalTokens: 0,
-  };
-
   try {
+    logger.info('Chat action started');
+    const cookieHeader = request.headers.get('Cookie');
+    const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
+    const providerSettings: Record<string, IProviderSetting> = JSON.parse(
+      parseCookies(cookieHeader || '').providers || '{}',
+    );
+
+    const body = await request.json() as ChatRequestBody;
+    logger.info('Request body:', {
+      hasMessages: !!body.messages?.length,
+      hasFiles: !!body.files,
+      promptId: body.promptId,
+      contextOptimization: body.contextOptimization,
+      userId: body.userId,
+      messageCount: body.messages?.length
+    });
+
+    const { messages, files, promptId, contextOptimization, userId } = body;
+
+    logger.info('Chat action details:', {
+      userId,
+      hasApiKeys: !!apiKeys && Object.keys(apiKeys).length > 0,
+      hasProviderSettings: !!providerSettings && Object.keys(providerSettings).length > 0,
+      messageCount: messages?.length,
+      firstMessageType: messages?.[0]?.role
+    });
+
+    if (!userId) {
+      logger.error('Missing userId in request');
+      throw new Response('User ID is required', {
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+    }
+
+    const stream = new SwitchableStream();
+
+    const cumulativeUsage = {
+      completionTokens: 0,
+      promptTokens: 0,
+      totalTokens: 0,
+    };
+
     const options: StreamingOptions = {
       toolChoice: 'none',
       onFinish: async ({ text: content, finishReason, usage }) => {
@@ -115,6 +145,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           providerSettings,
           promptId,
           contextOptimization,
+          userId,
         });
 
         stream.switchSource(result.toDataStream());
@@ -132,6 +163,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       providerSettings,
       promptId,
       contextOptimization,
+      userId,
     });
 
     stream.switchSource(result.toDataStream());
@@ -143,7 +175,12 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error: any) {
-    logger.error(error);
+    logger.error('Chat action error:', error);
+    logger.error('Error stack:', error.stack);
+
+    if (error instanceof Response) {
+      throw error;
+    }
 
     if (error.message?.includes('API key')) {
       throw new Response('Invalid or missing API key', {
@@ -152,7 +189,15 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       });
     }
 
-    throw new Response(null, {
+    const errorMessage = error.message || 'An unexpected error occurred';
+    logger.error('Error details:', {
+      message: errorMessage,
+      type: error.constructor.name,
+      code: error.code,
+      name: error.name
+    });
+    
+    throw new Response(errorMessage, {
       status: 500,
       statusText: 'Internal Server Error',
     });

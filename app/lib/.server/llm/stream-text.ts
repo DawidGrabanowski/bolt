@@ -17,6 +17,20 @@ import { allowedHTMLElements } from '~/utils/markdown';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
 
+const logger = createScopedLogger('stream-text');
+
+interface StreamTextProps {
+  messages: Messages;
+  env: Env;
+  options?: StreamingOptions;
+  apiKeys?: Record<string, string>;
+  files?: FileMap;
+  providerSettings?: Record<string, IProviderSetting>;
+  promptId?: string;
+  contextOptimization?: boolean;
+  userId: string;  // Required field for user identification
+}
+
 interface ToolResult<Name extends string, Args, Result> {
   toolCallId: string;
   toolName: Name;
@@ -50,16 +64,12 @@ type Dirent = File | Folder;
 export type FileMap = Record<string, Dirent | undefined>;
 
 export function simplifyBoltActions(input: string): string {
-  // Using regex to match boltAction tags that have type="file"
   const regex = /(<boltAction[^>]*type="file"[^>]*>)([\s\S]*?)(<\/boltAction>)/g;
-
-  // Replace each matching occurrence
   return input.replace(regex, (_0, openingTag, _2, closingTag) => {
     return `${openingTag}\n          ...\n        ${closingTag}`;
   });
 }
 
-// Common patterns to ignore, similar to .gitignore
 const IGNORE_PATTERNS = [
   'node_modules/**',
   '.git/**',
@@ -115,16 +125,7 @@ function extractPropertiesFromMessage(message: Message): { model: string; provid
   const modelMatch = textContent.match(MODEL_REGEX);
   const providerMatch = textContent.match(PROVIDER_REGEX);
 
-  /*
-   * Extract model
-   * const modelMatch = message.content.match(MODEL_REGEX);
-   */
   const model = modelMatch ? modelMatch[1] : DEFAULT_MODEL;
-
-  /*
-   * Extract provider
-   * const providerMatch = message.content.match(PROVIDER_REGEX);
-   */
   const provider = providerMatch ? providerMatch[1] : DEFAULT_PROVIDER.name;
 
   const cleanedContent = Array.isArray(message.content)
@@ -135,29 +136,28 @@ function extractPropertiesFromMessage(message: Message): { model: string; provid
             text: item.text?.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, ''),
           };
         }
-
-        return item; // Preserve image_url and other types as is
+        return item;
       })
     : textContent.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, '');
 
   return { model, provider, content: cleanedContent };
 }
 
-const logger = createScopedLogger('stream-text');
+export async function streamText(props: StreamTextProps) {
+  const { messages, env: serverEnv, options, apiKeys, files, providerSettings, promptId, contextOptimization, userId } = props;
 
-export async function streamText(props: {
-  messages: Messages;
-  env: Env;
-  options?: StreamingOptions;
-  apiKeys?: Record<string, string>;
-  files?: FileMap;
-  providerSettings?: Record<string, IProviderSetting>;
-  promptId?: string;
-  contextOptimization?: boolean;
-}) {
-  const { messages, env: serverEnv, options, apiKeys, files, providerSettings, promptId, contextOptimization } = props;
+  if (!userId) {
+    logger.error('Missing userId in streamText request');
+    throw new Error('User ID is required for streaming text');
+  }
 
-  // console.log({serverEnv});
+  logger.info('Streaming text with config:', {
+    userId,
+    hasMessages: !!messages?.length,
+    hasFiles: !!files,
+    promptId,
+    contextOptimization
+  });
 
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
@@ -166,18 +166,14 @@ export async function streamText(props: {
       const { model, provider, content } = extractPropertiesFromMessage(message);
       currentModel = model;
       currentProvider = provider;
-
       return { ...message, content };
     } else if (message.role == 'assistant') {
       let content = message.content;
-
       if (contextOptimization) {
         content = simplifyBoltActions(content);
       }
-
       return { ...message, content };
     }
-
     return message;
   });
 
@@ -202,7 +198,6 @@ export async function streamText(props: {
     modelDetails = modelsList.find((m) => m.name === currentModel);
 
     if (!modelDetails) {
-      // Fallback to first model
       logger.warn(
         `MODEL [${currentModel}] not found in provider [${provider.name}]. Falling back to first model. ${modelsList[0].name}`,
       );
@@ -226,16 +221,37 @@ export async function streamText(props: {
 
   logger.info(`Sending llm call to ${provider.name} with model ${modelDetails.name}`);
 
-  return _streamText({
-    model: provider.getModelInstance({
+  try {
+    const modelInstance = provider.getModelInstance({
       model: currentModel,
       serverEnv,
       apiKeys,
       providerSettings,
-    }),
-    system: systemPrompt,
-    maxTokens: dynamicMaxTokens,
-    messages: convertToCoreMessages(processedMessages as any),
-    ...options,
-  });
+    });
+
+    if (!modelInstance) {
+      throw new Error(`Failed to get model instance for ${currentModel} from provider ${provider.name}`);
+    }
+
+    const result = await _streamText({
+      model: modelInstance,
+      system: systemPrompt,
+      maxTokens: dynamicMaxTokens,
+      messages: convertToCoreMessages(processedMessages as any),
+      ...options,
+    });
+
+    logger.info('Stream text completed successfully');
+    return result;
+
+  } catch (error: any) {
+    logger.error('Stream text error:', {
+      error,
+      userId,
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error'
+    });
+
+    throw new Error(`Failed to stream text: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }

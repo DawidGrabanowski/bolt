@@ -67,6 +67,7 @@ export class ActionRunner {
   #webcontainer: Promise<WebContainer>;
   #currentExecutionPromise: Promise<void> = Promise.resolve();
   #shellTerminal: () => BoltShell;
+  #userId?: string;
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
   onAlert?: (alert: ActionAlert) => void;
@@ -75,13 +76,25 @@ export class ActionRunner {
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
     onAlert?: (alert: ActionAlert) => void,
+    userId?: string,
   ) {
+    if (!userId) {
+      throw new Error('User ID is required to initialize ActionRunner');
+    }
+
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
     this.onAlert = onAlert;
+    this.#userId = userId;
+
+    logger.info('ActionRunner initialized for user:', userId);
   }
 
   addAction(data: ActionCallbackData) {
+    if (!this.#userId) {
+      throw new Error('User ID is required to add actions');
+    }
+
     const { actionId } = data;
 
     const actions = this.actions.get();
@@ -111,6 +124,10 @@ export class ActionRunner {
   }
 
   async runAction(data: ActionCallbackData, isStreaming: boolean = false) {
+    if (!this.#userId) {
+      throw new Error('User ID is required to run actions');
+    }
+
     const { actionId } = data;
     const action = this.actions.get()[actionId];
 

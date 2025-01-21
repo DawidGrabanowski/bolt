@@ -34,8 +34,11 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
   const artifact = artifacts[messageId];
 
   const actions = useStore(
-    computed(artifact.runner.actions, (actions) => {
-      return Object.values(actions);
+    computed([workbenchStore.artifacts], (artifacts) => {
+      if (!artifact || !artifact.runner) {
+        return [];
+      }
+      return Object.values(artifact.runner.actions.get());
     }),
   );
 
@@ -45,6 +48,10 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
   };
 
   useEffect(() => {
+    if (!artifact) {
+      return;
+    }
+
     if (actions.length && !showActions && !userToggledActions.current) {
       setShowActions(true);
     }
@@ -56,7 +63,7 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
         setAllActionFinished(finished);
       }
     }
-  }, [actions]);
+  }, [actions, artifact]);
 
   return (
     <div className="artifact border border-bolt-elements-borderColor flex flex-col overflow-hidden rounded-lg w-full transition-border duration-150">

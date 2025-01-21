@@ -40,8 +40,13 @@ export class WorkbenchStore {
   #terminalStore = new TerminalStore(webcontainer);
 
   #reloadedMessages = new Set<string>();
+  #userId?: string;
 
   artifacts: Artifacts = import.meta.hot?.data.artifacts ?? map({});
+
+  setUserId(userId: string) {
+    this.#userId = userId;
+  }
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('code');
@@ -250,6 +255,10 @@ export class WorkbenchStore {
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {
+    if (!this.#userId) {
+      throw new Error('User ID is required to add artifacts');
+    }
+
     const artifact = this.#getArtifact(messageId);
 
     if (artifact) {
@@ -275,6 +284,7 @@ export class WorkbenchStore {
 
           this.actionAlert.set(alert);
         },
+        this.#userId
       ),
     });
   }
@@ -294,6 +304,10 @@ export class WorkbenchStore {
     this.addToExecutionQueue(() => this._addAction(data));
   }
   async _addAction(data: ActionCallbackData) {
+    if (!this.#userId) {
+      throw new Error('User ID is required to add actions');
+    }
+
     const { messageId } = data;
 
     const artifact = this.#getArtifact(messageId);
@@ -313,6 +327,10 @@ export class WorkbenchStore {
     }
   }
   async _runAction(data: ActionCallbackData, isStreaming: boolean = false) {
+    if (!this.#userId) {
+      throw new Error('User ID is required to run actions');
+    }
+
     const { messageId } = data;
 
     const artifact = this.#getArtifact(messageId);

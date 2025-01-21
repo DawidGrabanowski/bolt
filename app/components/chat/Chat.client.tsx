@@ -41,8 +41,11 @@ export function Chat() {
   const { user, showEmailVerificationModal } = useStore(authStore);
 
   useEffect(() => {
+    if (user?.id) {
+      workbenchStore.setUserId(user.id);
+    }
     workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
-  }, [initialMessages]);
+  }, [initialMessages, user?.id]);
 
   return (
     <>
@@ -148,6 +151,17 @@ export const ChatImpl = memo(
 
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
 
+    const { user } = useStore(authStore);
+
+    // Redirect to login if no user
+    useEffect(() => {
+      if (!user) {
+        logger.warn('No user ID available, redirecting to login');
+        window.location.href = '/auth/login';
+        return;
+      }
+    }, [user]);
+
     const { messages, isLoading, input, handleInputChange, setInput, stop, append, setMessages, reload } = useChat({
       api: '/api/chat',
       body: {
@@ -155,6 +169,7 @@ export const ChatImpl = memo(
         files,
         promptId,
         contextOptimization: contextOptimizationEnabled,
+        userId: user?.id,
       },
       sendExtraMessageFields: true,
       onError: (error) => {

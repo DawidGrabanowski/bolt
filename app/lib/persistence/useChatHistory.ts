@@ -4,7 +4,11 @@ import { atom } from 'nanostores';
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { logStore } from '~/lib/stores/logs'; // Import logStore
+import { logStore } from '~/lib/stores/logs';
+import { authStore } from '~/lib/stores/auth';
+import { createScopedLogger } from '~/utils/logger';
+
+const logger = createScopedLogger('ChatHistory');
 import {
   getMessages,
   getNextId,
@@ -17,6 +21,7 @@ import {
 
 export interface ChatHistoryItem {
   id: string;
+  userId: string;  // Required field for user ownership
   urlId?: string;
   description?: string;
   messages: Message[];
@@ -52,8 +57,16 @@ export function useChatHistory() {
       return;
     }
 
+    const { user } = authStore.get();
+    if (!user) {
+      setReady(true);
+      navigate('/auth/login');
+      return;
+    }
+
     if (mixedId) {
-      getMessages(db, mixedId)
+      logger.info('Loading chat:', { mixedId, userId: user.id });
+      getMessages(db, mixedId, user.id)
         .then((storedMessages) => {
           if (storedMessages && storedMessages.messages.length > 0) {
             const rewindId = searchParams.get('rewindTo');
@@ -109,7 +122,20 @@ export function useChatHistory() {
         }
       }
 
-      await setMessages(db, chatId.get() as string, messages, urlId, description.get());
+      const { user } = authStore.get();
+      if (!user) {
+        toast.error('You must be logged in to save chat history');
+        return;
+      }
+
+      await setMessages(
+        db,
+        chatId.get() as string,
+        messages,
+        user.id,
+        urlId,
+        description.get()
+      );
     },
     duplicateCurrentChat: async (listItemId: string) => {
       if (!db || (!mixedId && !listItemId)) {
@@ -117,7 +143,13 @@ export function useChatHistory() {
       }
 
       try {
-        const newId = await duplicateChat(db, mixedId || listItemId);
+        const { user } = authStore.get();
+        if (!user) {
+          toast.error('You must be logged in to duplicate chats');
+          return;
+        }
+
+        const newId = await duplicateChat(db, mixedId || listItemId, user.id);
         navigate(`/chat/${newId}`);
         toast.success('Chat duplicated successfully');
       } catch (error) {
@@ -131,7 +163,13 @@ export function useChatHistory() {
       }
 
       try {
-        const newId = await createChatFromMessages(db, description, messages);
+        const { user } = authStore.get();
+        if (!user) {
+          toast.error('You must be logged in to import chats');
+          return;
+        }
+
+        const newId = await createChatFromMessages(db, description, messages, user.id);
         window.location.href = `/chat/${newId}`;
         toast.success('Chat imported successfully');
       } catch (error) {
@@ -147,7 +185,13 @@ export function useChatHistory() {
         return;
       }
 
-      const chat = await getMessages(db, id);
+      const { user } = authStore.get();
+      if (!user) {
+        toast.error('You must be logged in to export chats');
+        return;
+      }
+
+      const chat = await getMessages(db, id, user.id);
       const chatData = {
         messages: chat.messages,
         description: chat.description,
